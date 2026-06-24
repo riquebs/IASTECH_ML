@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador de Excel</title>
+    <!-- Biblioteca SheetJS para ler o Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f6f9;
+            color: #333;
+        }
+        h2 { color: #2c3e50; }
+        #search {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .table-container {
+            overflow-x: auto;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #34495e;
+            color: white;
+            position: sticky;
+            top: 0;
+        }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f1f1f1; }
+        .loading { font-style: italic; color: #7f8c8d; }
+    </style>
+</head>
+<body>
+
+    <h2>📊 Consulta de Dados</h2>
+    
+    <!-- Barra de busca para navegar nos dados -->
+    <input type="text" id="search" onkeyup="filterTable()" placeholder="Digite para buscar informações...">
+
+    <div class="table-container">
+        <div id="loading" class="loading">Carregando dados do Excel...</div>
+        <table id="excel-table" style="display: none;">
+            <thead id="table-head"></thead>
+            <tbody id="table-body"></tbody>
+        </table>
+    </div>
+
+    <script>
+        // Nome do seu arquivo Excel que estará na mesma pasta no GitHub
+        const excelFile = 'dados.xlsx'; 
+
+        async function loadExcel() {
+            try {
+                // Busca o arquivo Excel no repositório
+                const response = await fetch(excelFile);
+                if (!response.ok) throw new Error("Não foi possível encontrar o arquivo " + excelFile);
+                
+                const arrayBuffer = await response.arrayBuffer();
+                
+                // Lê o arquivo usando a biblioteca SheetJS
+                const data = new Uint8Array(arrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                // Pega a primeira aba (planilha) do Excel
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                // Converte a planilha para formato JSON (matriz)
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                
+                if (jsonData.length > 0) {
+                    displayTable(jsonData);
+                } else {
+                    document.getElementById('loading').innerText = "O arquivo Excel está vazio.";
+                }
+            } catch (error) {
+                document.getElementById('loading').innerText = "Erro ao carregar os dados: " + error.message;
+            }
+        }
+
+        function displayTable(data) {
+            const head = document.getElementById('table-head');
+            const body = document.getElementById('table-body');
+            
+            // Limpa conteúdos anteriores
+            head.innerHTML = "";
+            body.innerHTML = "";
+
+            // Cria o cabeçalho (primeira linha do Excel)
+            const headers = data[0];
+            let headRow = "<tr>";
+            headers.forEach(header => {
+                headRow += `<th>${header || ''}</th>`;
+            });
+            headRow += "</tr>";
+            head.innerHTML = headRow;
+
+            // Cria as linhas com os dados
+            for (let i = 1; i < data.length; i++) {
+                let bodyRow = "<tr>";
+                // Garante que vai ler todas as colunas baseado no cabeçalho
+                for (let j = 0; j < headers.length; j++) {
+                    bodyRow += `<td>${data[i][j] !== undefined ? data[i][j] : ''}</td>`;
+                }
+                bodyRow += "</tr>";
+                body.innerHTML += bodyRow;
+            }
+
+            // Esconde o 'Carregando' e mostra a tabela
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('excel-table').style.display = 'table';
+        }
+
+        // Função simples para filtrar/buscar na tabela
+        function filterTable() {
+            const input = document.getElementById("search");
+            const filter = input.value.toUpperCase();
+            const table = document.getElementById("excel-table");
+            const tr = table.getElementsByTagName("tr");
+
+            // Ignora o cabeçalho (i = 1)
+            for (let i = 1; i < tr.length; i++) {
+                let rowContainsFilter = false;
+                const tds = tr[i].getElementsByTagName("td");
+                
+                for (let j = 0; j < tds.length; j++) {
+                    if (tds[j] && tds[j].innerText.toUpperCase().indexOf(filter) > -1) {
+                        rowContainsFilter = true;
+                        break;
+                    }
+                }
+                tr[i].style.display = rowContainsFilter ? "" : "none";
+            }
+        }
+
+        // Inicia a carga do arquivo ao abrir a página
+        window.onload = loadExcel;
+    </script>
+</body>
+</html>
